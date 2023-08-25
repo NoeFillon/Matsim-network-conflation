@@ -15,12 +15,12 @@ import java.util.*;
 
 /**
  * Contains the information and functions to conflate the network
+ * Including two ConflationPreprocessedNetwork's
  */
 public class NetworkConflator {
 
     private ConflationPreprocessedNetwork refNet;
     private ConflationPreprocessedNetwork targetNet;
-    private HashMap<Long, HashSet<Long>> candidateMatches; // Called R(delta) in paper
     private double nodeTolerance;
 
     private final static Logger LOG = LogManager.getLogger(NetworkConflator.class);
@@ -31,7 +31,20 @@ public class NetworkConflator {
     private double angleToleranceCos = Math.cos(refToTargetAngleTolerance);
     public double bufferMinimalOverlap = 0.2; // Must be >= 5% to avoid errors
 
-
+    /**
+     * Constructor for NetworkConflator, saves the parameters as NetworkConflator object attributes
+     * @param refPath path to the reference network (refNet)
+     * @param refNodeTolerance tolerance for node location in refNet
+     * @param refBufferTolerance tolerance for segment location in refNet
+     * @param targetPath path to the target network (targetNet)
+     * @param targetNodeTolerance tolerance for node location in targetNet
+     * @param targetBufferTolerance tolerance for segment location in targetNet
+     * @param rTreeSquareDimension rTree associates neighbouring segments by making a grid. Segments crossing same squarein grid placed in same rTree branch. One segment can be in several branches. rTreeSquareDimension must be > refBufferTolerance + targetBufferTolerance
+     * @param modesToKeep keep in Networks only the links allowing one mode in modesToKeep
+     * @param saveSimplifiedNetworks after making segments out of several links (between terminal nodes) save the segments as links in a new .xml file
+     * @param simplifiedRefNetworkSavingPath paths where simplified refNet is saved
+     * @param simplifiedTargetNetworkSavingPath paths where simplified targetNet is saved
+     */
     public NetworkConflator(String refPath, double refNodeTolerance, double refBufferTolerance,
                             String targetPath, double targetNodeTolerance, double targetBufferTolerance,
                             double rTreeSquareDimension, HashSet<String> modesToKeep, boolean saveSimplifiedNetworks,
@@ -53,17 +66,11 @@ public class NetworkConflator {
         this.targetNet.preprocessNetwork(Math.PI/6, modesToKeep, false);
 
         if (saveSimplifiedNetworks) {
-            saveSimplifiedNetwork(this.refNet, simplifiedRefNetworkSavingPath);
-            saveSimplifiedNetwork(this.targetNet, simplifiedTargetNetworkSavingPath);
+            this.refNet.saveSimplifiedNetwork(simplifiedRefNetworkSavingPath);
+            this.targetNet.saveSimplifiedNetwork(simplifiedTargetNetworkSavingPath);
         }
     }
 
-
-
-    private void saveSimplifiedNetwork(ConflationPreprocessedNetwork preprocessedNet, String path) {
-        Network simplifiedNet = preprocessedNet.createSimplifiedNetworkFromSegments();
-        new NetworkWriter(simplifiedNet).write(path);
-    }
 
     public ConflationPreprocessedNetwork getRefNet() {
         return refNet;
@@ -73,15 +80,30 @@ public class NetworkConflator {
         return targetNet;
     }
 
+
+    /**
+     * Sets max angle for segment to be kept as segment candidate
+     * @param refToTargetAngleTolerance angle tolerance (radians)
+     */
     public void setRefToTargetAngleTolerance(double refToTargetAngleTolerance) {
         this.refToTargetAngleTolerance = refToTargetAngleTolerance;
         this.angleToleranceCos = Math.cos(refToTargetAngleTolerance);
     }
 
+
+    /**
+     * Sets minimal overlap threshold for segment to be kept as segment candidate
+     * @param bufferMinimalOverlap minimal value for overlapArea / min(refSegment buffer, targetSegment buffer) to keep segment as candidate
+     */
     public void setBufferOverlapPruneThreshold(double bufferMinimalOverlap) {
         this.bufferMinimalOverlap = bufferMinimalOverlap;
     }
 
+
+    /**
+     * Highest level main function of the class: builds targetNet ScoredPolyline good candidates for each refNet segment
+     * @return Map of refSegment id <-> HashSet of targetNet ScoredPolyline good candidates for refSegment
+     */
     public HashMap<Long, HashSet<ScoredPolyline>> populateForNetwork() {
         // Algo 1, p 49
         HashMap<Long, HashSet<ScoredPolyline>> goodPotentialMatches = new HashMap<>();
@@ -97,15 +119,16 @@ public class NetworkConflator {
         return goodPotentialMatches;
     }
 
+
     /**
-     * constructs the candidate polylines
-     * @param refSegment
-     * @param goodPotentialMatches
+     * Used in populateForNetwork : Constructs Polyline good candidates and scores them for one refSegment. Can cut refSegment in 2 or 3 shorter segments if no good candidate is found
+     * @param refSegment segment from refNet
+     * @param goodPotentialMatches initially empty Set of good candidates for refSegment, can not be empty if function is calling itself
      */
     private void populateOneSegment(Segment refSegment, HashMap<Long, HashSet<ScoredPolyline>> goodPotentialMatches) {
-        HashSet<Segment> potentialCandidateMatches = findPotentialCandidateMatches(refSegment);
+        HashSet<Segment> potentialCandidateMatches = findSegmentCandidateMatches(refSegment);
 
-        HashSet<Polyline> candidates = findCandidateMatches(refSegment, potentialCandidateMatches);
+        HashSet<Polyline> candidates = buildPolylineCandidateMatches(refSegment, potentialCandidateMatches);
         HashSet<ScoredPolyline> candidateMatches = new HashSet<>();
 
         for (Polyline candidate : candidates) {
@@ -185,18 +208,26 @@ public class NetworkConflator {
             // If no potential match found don't do anything
 
             // looking for good candidates for each new interpolated segment (recursive)
+
             for (Long segId : newSegments) {
-                populateOneSegment(refNet.getSegments().get(segId), goodPotentialMatches);
+                Segment newSegment = refNet.getSegments().get(segId);
+                populateOneSegment(newSegment, goodPotentialMatches);
             }
         }
     }
 
 
-    public HashSet<Polyline> findCandidateMatches(Segment refSegment, HashSet<Segment> potentialMatches) {      // 2d parameter: Polyline candidate
+    /**
+     * Builds as many good candidates as possible (but still keeps Polylines that cannot be interpolated into good candidates)
+     * @param refSegment segment from refNet
+     * @param segmentCandidates Set of targetSegments kept as segment candidates for refSegment
+     * @return Set of all possible Polylines built from targetSegments in potentialMatches
+     */
+    public HashSet<Polyline> buildPolylineCandidateMatches(Segment refSegment, HashSet<Segment> segmentCandidates) {
         HashMap<Segment, HashSet<Polyline>> polylinesFromSegments = new HashMap<>();
 
         // Filling startingSegments with segments that don't have next in PotentialMatches
-        buildPolylines(potentialMatches, polylinesFromSegments);
+        buildPolylines(segmentCandidates, polylinesFromSegments);
 
         // Interpolating built polylines where from/to-nodes don't correspond with refSegment's
         HashSet<Polyline> finalSet = new HashSet<>();
@@ -228,6 +259,11 @@ public class NetworkConflator {
     }
 
 
+    /**
+     * Used in buildPolylineCandidateMatches : builds all possible candidates from Segments in potentialCandidates
+     * @param potentialCandidates Set of Segments from which function must build Polylines
+     * @param polylinesFromSegments Map associating First segment in Polyline <-> Set of Polylines. Initially empty except when function calls itself. At the end, contains all built Polylines
+     */
     private void buildPolylines(HashSet<Segment> potentialCandidates, HashMap<Segment, HashSet<Polyline>> polylinesFromSegments) {
         for (Segment startingSeg : potentialCandidates) {
             if (!polylinesFromSegments.containsKey(startingSeg)) {
@@ -235,10 +271,10 @@ public class NetworkConflator {
                 for (Segment segment : potentialCandidates) {
                     if (startingSeg.getToNode() == segment.getFromNode() && !polylinesFromSegments.containsKey(segment)) {
                         hasUnseenNext = true;
+                        break;
                     }
                 }
                 if (!hasUnseenNext) {
-
                     // adding polyline composed of only startingSeg
                     ArrayList<Segment> segmentList = new ArrayList<>();
                     segmentList.add(startingSeg);
@@ -246,7 +282,8 @@ public class NetworkConflator {
                     polylines.add(new Polyline(segmentList));
                     polylinesFromSegments.put(startingSeg, polylines);
 
-                    // adding Polylines starting from startingSeg's successors
+                    // adding Polylines starting from startingSeg's successors: startingSeg doesn't have unseen next
+                    // => all possible Polylines starting from its successors have already been built
                     for (Segment segment : polylinesFromSegments.keySet()) {
                         if (startingSeg.getToNode() == segment.getFromNode()) {
                             for (Polyline polyline : polylinesFromSegments.get(segment)) {
@@ -264,6 +301,10 @@ public class NetworkConflator {
     }
 
 
+    /**
+     * Prints initial cut, link ids and final cut for a Polyline
+     * @param candidate Polyline to print
+     */
     public void printLinks(Polyline candidate) {
         ArrayList<ArrayList<Id<Link>>> linkIds = candidate.getLinkIdsWithCuts();
         if (candidate.getInitialCut().getIsLinkCut()) {
@@ -281,7 +322,13 @@ public class NetworkConflator {
     }
 
 
-    protected double computeScore(Segment refSegment, Polyline candidate) {
+    /**
+     * Used in populateOneSegment : Computes similarity score for a Polyline candidate to represent refSegment
+     * @param refSegment segment from refNet
+     * @param candidate Polyline of which function calculates similarity score
+     * @return candidate score
+     */
+    private double computeScore(Segment refSegment, Polyline candidate) {
         double ovArea = 0;
         double tarArea = 0;
         // Assuming the angles between links are not fairly small
@@ -303,7 +350,12 @@ public class NetworkConflator {
     }
 
 
-    public HashSet<Segment> findPotentialCandidateMatches(Segment refSegment) {
+    /**
+     * Used in populateOneSegment : Looks in targetNet for nearby Segments to be kept as candidates for refSegment
+     * @param refSegment segment from refNet
+     * @return Set of candidate Segments
+     */
+    public HashSet<Segment> findSegmentCandidateMatches(Segment refSegment) {
         HashSet<Long> nearbySegments = new HashSet<>();
         HashMap<Integer, HashSet<Integer>> viewedRTreeBranches = new HashMap<>();
         int n = refSegment.getRTreeBranchesSet().size();
@@ -351,6 +403,15 @@ public class NetworkConflator {
         return VectOp.length(VectOp.addVectors(fromCoord, VectOp.extPdt(-1, toCoord)));
     }
 
+
+    /**
+     * Computes the intersection area between the buffer zones of two segments (i.e. rectangle around a Segment, sides of said rectangle distant of bufferTolerance from Segment)
+     * @param refSeg segment from refNet
+     * @param targetSeg segment from targetNet
+     * @param prolongTarFrom short side of rectangle passes at a distance from fromNode (true) or through it (false)
+     * @param prolongTarTo short side of rectangle passes at a distance from toNode (true) or through it (false)
+     * @return area of intersection of the two buffers
+     */
     public double overlapArea(LocalizedVector refSeg, LocalizedVector targetSeg, boolean prolongTarFrom, boolean prolongTarTo) {
         if ((refSeg.getVectorCoord().getX() == 0 && refSeg.getVectorCoord().getX() == 0) || (targetSeg.getVectorCoord().getX() == 0 && targetSeg.getVectorCoord().getX() == 0)) {
             return 0;
@@ -582,12 +643,17 @@ public class NetworkConflator {
     }
 
 
+    /**
+     * Used in overlapArea : Considers orthonormal coordinates system placing refSegment on x-axis (y = 0), usually fromNode is at (x,y) = (0,0)
+     * Builds parallelogram determined by lines y = -refBufferTolerance, y = refBufferTolerance and lines determined by targetSegment buffer long sides
+     * @param buffer targetSegment buffer sides
+     * @return list of point Coord: anti-clockwise direction, starting from bottom left
+     */
     private ArrayList<Coord> buildParallelogram(ArrayList<LocalizedVector> buffer) {
-        double refTolerance = refNet.getBufferTolerance();
         ArrayList<Coord> parallelogram = new ArrayList<>();
         for (int i = -1; i<2; i+=2) {
-            double y = refTolerance*i;
-            for (int j : Arrays.asList((1+i)/2, (1-i)/2)) { // i == -1 => (0,1) ; i == 1 => (1,0)
+            double y = refNet.getBufferTolerance()*i;
+            for (int j : Arrays.asList((1+i)/2, (1-i)/2)) { // i==-1 => {0,1} ; i==1 => {1,0}
                 // solving x = xM + xu*t ; y = yM + yu*t <=> t = (y - yM)/yu
                 double t = (y - buffer.get(j).getFromCoord().getY()) / buffer.get(j).getVectorCoord().getY();
                 parallelogram.add(new Coord(buffer.get(j).getFromCoord().getX() + buffer.get(j).getVectorCoord().getX()*t, y));
@@ -597,6 +663,13 @@ public class NetworkConflator {
     }
 
 
+    /**
+     * Used in overlapArea : Builds a list representing a cut in parallellogram: cuts represent short sides (withs) of refSegment buffers
+     * @param x vertical cut x location
+     * @param y1 vertical cut bottom point y location
+     * @param y2 vertical cut top point y location
+     * @return List of 2 points representing the cut
+     */
     private static ArrayList<Coord> newVerticalCut(double x, double y1, double y2) {
         ArrayList<Coord> cutList = new ArrayList<>();
         cutList.add(new Coord(x, y1));
@@ -604,12 +677,24 @@ public class NetworkConflator {
         return cutList;
     }
 
+
+    /**
+     * Used in overlapArea : Makes a symmetry of the cut around x-axis (y = 0)
+     * @param cutList List containing points representing cut. Same list is to be reversed.
+     */
     private static void cutVerticalSymmetry(ArrayList<Coord> cutList) {
         Coord temp = cutList.get(0);
         cutList.set(0, new Coord(cutList.get(1).getX(), -cutList.get(1).getY()));
         cutList.set(1, new Coord(temp.getX(), -temp.getY()));
     }
 
+
+    /**
+     * Used in overlapArea : Integrates a function f composed of a succession of segments
+     * @param xList locations of points where f is evaluated
+     * @param fList values of f on points of xList
+     * @return integral of f
+     */
     private static double integrateTrapezes(ArrayList<Double> xList, ArrayList<Double> fList) {
         if (xList.size() != fList.size()) {
             LOG.warn("xList and fList not the same size for integration, will integrate until the shortest is done");

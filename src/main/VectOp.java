@@ -6,12 +6,11 @@ import java.util.ArrayList;
 import java.util.HashSet;
 
 public class VectOp {
-
     public static Coord addVectors(Coord coord1, Coord coord2) {
-        ArrayList<Coord> addingList = new ArrayList<>();
-        addingList.add(coord1);
-        addingList.add(coord2);
-        return addVectors(addingList);
+        HashSet<Coord> addingSet = new HashSet<>();
+        addingSet.add(coord1);
+        addingSet.add(coord2);
+        return addVectors(addingSet);
     }
 
     public static Coord addVectors(ArrayList<Coord> coordList) {
@@ -40,6 +39,12 @@ public class VectOp {
         return length(AB);
     }
 
+
+    /**
+     * Builds unitary vector in the direction of vector
+     * @param vector vector one wants to build unitary vector from
+     * @return unitary vector
+     */
     public static Coord getUnitVector(Coord vector) {
         return extPdt(1/length(vector), vector);
     }

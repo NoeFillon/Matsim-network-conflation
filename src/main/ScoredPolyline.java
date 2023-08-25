@@ -13,9 +13,3 @@ public class ScoredPolyline {
         return polyline;
     }
 }
-
-/*
-Ici on veut attribuer un score aux polylines : score(Polyline, Segment)
-mais il sera peut-être nécessaire plus tard de noter des polylines avec des polylines et pas des segments
-A décider une fois qu'on saura quoi faire avec les partial matches...
-*/

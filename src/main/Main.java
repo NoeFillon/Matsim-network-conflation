@@ -52,10 +52,9 @@ public class Main {
         //  Avertir quand la dimension du RTree est <= à la somme des tolérances buffer
 
 
-
         LOG.info("Looking for potential candidates");
         for (Segment refSegment : conflator.getRefNet().getSegments().values()) {
-            conflator.findPotentialCandidateMatches(refSegment);
+            conflator.findSegmentCandidateMatches(refSegment);
         }
         LOG.info("Done looking for potential candidates");
 

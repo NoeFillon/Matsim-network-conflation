@@ -12,17 +12,6 @@ public class Segment {
     private ArrayList<Link> links;
     private final long id;
     private HashSet<BidimensionalIndex> RTreeBranchesSet = new HashSet<>();
-    private Segment parent = null;
-    private Polyline.Cut parentInitialCut = null;
-    private Polyline.Cut parentFinalCut = null;
-
-    public Segment(ArrayList<Link> links, long id, Segment parent, Polyline.Cut initialCut, Polyline.Cut finalCut) {
-        this.id = id;
-        this.links = links;
-        this.parent = parent;
-        this.parentInitialCut = initialCut;
-        this.parentFinalCut = finalCut;
-    }
 
     public Segment(ArrayList<Link> links, long id) {
         this.id = id;
@@ -113,18 +102,6 @@ public class Segment {
         bufferBorder.add(departurePoint);
         bufferBorder.add(borderVector);
         return bufferBorder;
-    }
-
-    public Segment getParent() {
-        return parent;
-    }
-
-    public Polyline.Cut getParentInitialCut() {
-        return parentInitialCut;
-    }
-
-    public Polyline.Cut getParentFinalCut() {
-        return parentFinalCut;
     }
 
     public double closestPointInSegment(Coord point, ArrayList<Integer> cutLinkIndexWrapper) {

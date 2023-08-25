@@ -7,11 +7,15 @@ import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.network.Link;
 import org.matsim.api.core.v01.network.Network;
+import org.matsim.api.core.v01.network.NetworkWriter;
 import org.matsim.api.core.v01.network.Node;
 import org.matsim.core.network.NetworkUtils;
 
 import java.util.*;
 
+/**
+ * Contains network and associated data for conflation
+ */
 public class ConflationPreprocessedNetwork {
 
     private final static Logger LOG = LogManager.getLogger(ConflationPreprocessedNetwork.class);
@@ -26,13 +30,20 @@ public class ConflationPreprocessedNetwork {
     private final double nodeTolerance;
     private final double RTreeSquareDimension;
 
-
     // These Maps allow to keep track of the links that have been cut and deleted
     private HashMap<Id<Link>, ArrayList<Double>> parentLinksCutPositionMap = new HashMap<>();   // <parentId, cutPositionList>
     private HashMap<Id<Link>, ArrayList<Link>> parentLinksChildrenMap = new HashMap<>();        // <parentId, childrenLinkList>
     private HashMap<Id<Link>, Id<Link>> childrenLinksParentIdMap = new HashMap<>();             // <childId, parentId>
     private HashMap<Id<Link>, Integer> childrenPlacementInParentMap = new HashMap<>();          // <childId, placementInParent>
 
+
+    /**
+     * Constructor
+     * @param network Network to preprocess
+     * @param bufferTolerance segment location uncertainty : half-width of segment buffer zone
+     * @param nodeTolerance node location uncertainty
+     * @param RTreeSquareDimension  rTree associates neighbouring segments by making a grid. Segments crossing same squarein grid placed in same rTree branch. One segment can be in several branches. rTreeSquareDimension must be > refBufferTolerance + targetBufferTolerance
+     */
     public ConflationPreprocessedNetwork(Network network, double bufferTolerance, double nodeTolerance, double RTreeSquareDimension) {
         this.network = network;
         this.bufferTolerance = bufferTolerance;
@@ -52,6 +63,15 @@ public class ConflationPreprocessedNetwork {
         preprocessNetwork(angleTolerance, modesToKeep, false);
     }
 
+
+    /**
+     * Preprocesses network : checks every node if terminal or not
+     * makes segments between terminal nodes using DFS algorithm and saves them in data structure
+     * builds R-TRee
+     * @param angleTolerance tolerance for link to be considered opposite direction: angle between links must be in [PI - angleTolerance, PI + angleTolerance]
+     * @param modesToKeep keep in Networks only the links allowing one mode in modesToKeep
+     * @param allNodesTerminal if true, forces nodes to be terminal and all segments to be only one link
+     */
     public void preprocessNetwork(double angleTolerance, HashSet<String> modesToKeep,  boolean allNodesTerminal) {
         LOG.info("Preprocessing network");
         LOG.info("Looking for terminal nodes");
@@ -93,7 +113,7 @@ public class ConflationPreprocessedNetwork {
 
             /// Go backwards until finding a terminal fromNode
             while (!preprocessedNodeMap.get(currentLink.getFromNode().getId()).getIsTerminal()) {
-                currentLink = straightestLink(currentLink, false, unexploredLinks);
+                currentLink = straightestUnexploredLink(currentLink, false, unexploredLinks);
             }
 
             goForward(currentLink, viewedLinksStack, segmentLinks, unexploredLinks);
@@ -129,7 +149,7 @@ public class ConflationPreprocessedNetwork {
                     (this can be false if the angle tolerance is >= 90° or pi rad)
                     we don't bother checking if it has been
                     */
-                    currentLink = straightestLink(currentLink, true, unexploredLinks);
+                    currentLink = straightestUnexploredLink(currentLink, true, unexploredLinks);
                     goForward(currentLink, viewedLinksStack, segmentLinks, unexploredLinks);
                     lastMoveIsBackwards = false;
                 }
@@ -139,17 +159,26 @@ public class ConflationPreprocessedNetwork {
         LOG.info("Done preprocessing network");
 
         LOG.info("Building R-Tree");
-        buildRTree(RTreeSquareDimension);
+        buildRTree();
         LOG.info("Done building R-Tree");
     }
 
 
+    /**
+     * Used in preprocessNetwork : in DFS, explores one more link forward
+     * @param link new link to explore
+     * @param viewedLinksStack stack of the links algorithm has gone through to reach current location from starting link. Is used to go backwards once a branch is fully explored, links are then removed from stack.
+     * @param segmentLinks List of links in the segment currently being built
+     * @param unexploredLinks Set of all unexplored links in network
+     * @return newly explored link
+     */
     private Link goForward(Link link, Stack<Link> viewedLinksStack, ArrayList<Link> segmentLinks, HashSet<Link> unexploredLinks) {
         viewedLinksStack.push(link);
         segmentLinks.add(link);
         unexploredLinks.remove(link);
         return link;
     }
+
 
     protected static Coord getLinkVectorCoords(Link l) {
         Coord fromCoords = l.getFromNode().getCoord();
@@ -159,7 +188,15 @@ public class ConflationPreprocessedNetwork {
         return new Coord(x,y);
     }
 
-    private Link straightestLink(Link link, boolean forward, HashSet<Link> unexploredLinks) {
+
+    /**
+     * Used in preprocessNetwork : Looks for unexplored adjacent link with the closest direction to link in parameter
+     * @param link link we want to look for adjacent links
+     * @param forward If true, looks at outLinks from toNode. If false, looks at inLinks to fromNode
+     * @param unexploredLinks Set of unexplored links: algorithm will only consider those
+     * @return link with closest direction from entry parameter link
+     */
+    private Link straightestUnexploredLink(Link link, boolean forward, HashSet<Link> unexploredLinks) {
         ArrayList <Link> links = new ArrayList<>();
         String nodeId = new String();
         if (forward) {
@@ -176,7 +213,7 @@ public class ConflationPreprocessedNetwork {
             if (!unexploredLinks.contains(links.get(i))) { links.remove(i); }
         }
         if (links.isEmpty()) {
-            LOG.warn("No unexplored link found on intermediate node "+nodeId+" should be terminal");
+            LOG.warn("No unexplored link found on intermediate node "+nodeId+", should be terminal");
             return null;
         }
 
@@ -195,6 +232,12 @@ public class ConflationPreprocessedNetwork {
     }
 
 
+    /**
+     * Used in preprocessNetwork : Chooses any unexplored link going forward
+     * @param link Link one wants to go forward from
+     * @param unexploredLinks Set of unexplored Links
+     * @return Next link
+     */
     private Link nextUnexploredLink(Link link, HashSet<Link> unexploredLinks) {
         for (Link potentialNextLink: link.getToNode().getOutLinks().values()) {
             if (unexploredLinks.contains(potentialNextLink)) {
@@ -205,6 +248,11 @@ public class ConflationPreprocessedNetwork {
     }
 
 
+    /**
+     * Used in preprocessNetwork, cutSegment : Creates new Segment in PreprocessedNetwork and manages its storage in data structures
+     * @param links list of links composing the segment
+     * @return new Segment
+     */
     private long createSegment(ArrayList<Link> links) {
         ArrayList<Link> segmentLinks = new ArrayList<Link>();
         segmentLinks.addAll(links);
@@ -214,6 +262,11 @@ public class ConflationPreprocessedNetwork {
         return segmentId-1;
     }
 
+
+    /**
+     * Used in cutSegment : removes segment from PreprocessedNetwork
+     * @param segmentId Id of segment to be removed
+     */
     private void removeSegment(Long segmentId) {
         if (segmentMap.containsKey(segmentId)) {
             segmentMap.remove(segmentId);
@@ -222,36 +275,59 @@ public class ConflationPreprocessedNetwork {
         }
     }
 
-    private void buildRTree(double squareDimension) {
+
+    /**
+     * Used in preprocessNetwork : Builds R-Tree and classifies segments in branches
+     * R-Tree associates neighbouring segments by making a grid: Segments crossing same square in grid placed in same branch.
+     * One segment can be in several branches
+     */
+    private void buildRTree() {
         for (Segment targetSegment : this.getSegments().values()) {
-            Coord fromCoord = targetSegment.getFromNode().getCoord();
-            Coord toCoord = targetSegment.getToNode().getCoord();
-            Coord vectorCoord = targetSegment.getCoord();
-            if (vectorCoord.getX() == 0) {
-                int i = (int) (fromCoord.getX()/squareDimension);
-                int jMin = (int) ((Math.min(fromCoord.getY(), fromCoord.getY()+vectorCoord.getY()) - bufferTolerance) / squareDimension);
-                int jMax = (int) ((Math.max(fromCoord.getY(), fromCoord.getY()+vectorCoord.getY()) + bufferTolerance) / squareDimension);
+            addOneSegmentInRTree(targetSegment);
+        }
+    }
+
+
+    /**
+     * Used in buildRTree, cutSegment : Checks the branches of R-Tree for one segment
+     * @param targetSegment segment to add in R-Tree
+     */
+    private void addOneSegmentInRTree(Segment targetSegment) {
+        Coord fromCoord = targetSegment.getFromNode().getCoord();
+        Coord toCoord = targetSegment.getToNode().getCoord();
+        Coord vectorCoord = targetSegment.getCoord();
+        if (vectorCoord.getX() == 0) {
+            int i = (int) (fromCoord.getX()/RTreeSquareDimension);
+            int jMin = (int) ((Math.min(fromCoord.getY(), fromCoord.getY()+vectorCoord.getY()) - bufferTolerance) / RTreeSquareDimension);
+            int jMax = (int) ((Math.max(fromCoord.getY(), fromCoord.getY()+vectorCoord.getY()) + bufferTolerance) / RTreeSquareDimension);
+            for (int j = jMin; j <= jMax; j++) {
+                addSegmentToRTreeBranch(i, j, targetSegment);
+            }
+        } else {
+            Coord unitVector = VectOp.getUnitVector(vectorCoord);
+            int iInit = (int) ((fromCoord.getX() - this.bufferTolerance * unitVector.getX()) / RTreeSquareDimension);
+            int iFinal = (int) ((toCoord.getX() + this.bufferTolerance * unitVector.getX()) / RTreeSquareDimension);
+            int iMin = Math.min(iInit, iFinal);
+            int iMax = Math.max(iInit, iFinal);
+            for (int i = iMin; i <= iMax; i++) {
+                double y1 = fromCoord.getY() + vectorCoord.getY() * (RTreeSquareDimension*i - fromCoord.getX()) / vectorCoord.getX();
+                double y2 = fromCoord.getY() + vectorCoord.getY() * (RTreeSquareDimension*(i+1) - fromCoord.getX()) / vectorCoord.getX();
+                int jMin = (int) ((Math.min(y1,y2) - this.bufferTolerance) / RTreeSquareDimension);
+                int jMax = (int) ((Math.max(y1,y2) + this.bufferTolerance) / RTreeSquareDimension);
                 for (int j = jMin; j <= jMax; j++) {
                     addSegmentToRTreeBranch(i, j, targetSegment);
-                }
-            } else {
-                int iInit = (int) ((fromCoord.getX() - this.bufferTolerance * vectorCoord.getX()/VectOp.length(vectorCoord)) / squareDimension);
-                int iFinal = (int) ((toCoord.getX() + this.bufferTolerance * vectorCoord.getX()/VectOp.length(vectorCoord)) / squareDimension);
-                int iMin = Math.min(iInit, iFinal);
-                int iMax = Math.max(iInit, iFinal);
-                for (int i = iMin; i <= iMax; i++) {
-                    double y1 = fromCoord.getY() + vectorCoord.getY() * (squareDimension*i - fromCoord.getX()) / vectorCoord.getX();
-                    double y2 = fromCoord.getY() + vectorCoord.getY() * (squareDimension*(i+1) - fromCoord.getX()) / vectorCoord.getX();
-                    int jMin = (int) ((Math.min(y1,y2) - this.bufferTolerance) / squareDimension);
-                    int jMax = (int) ((Math.max(y1,y2) + this.bufferTolerance) / squareDimension);
-                    for (int j = jMin; j <= jMax; j++) {
-                        addSegmentToRTreeBranch(i, j, targetSegment);
-                    }
                 }
             }
         }
     }
 
+
+    /**
+     * Used in addOneSegmentInRTree : Adds segment to R-Tree branch, identified by 2 integers (i,j) and adds branch to segment branch List
+     * @param i branch first id
+     * @param j branch second id
+     * @param targetSegment segment to add to (i,j) branch
+     */
     private void addSegmentToRTreeBranch(int i, int j, Segment targetSegment) {
         if (!this.RTree.containsKey(i)) {
             this.RTree.put(i, new HashMap<>());
@@ -262,6 +338,7 @@ public class ConflationPreprocessedNetwork {
         this.RTree.get(i).get(j).add(targetSegment.getId());
         targetSegment.addRTreeBranch(new BidimensionalIndex(i,j));
     }
+
 
     public double getBufferTolerance() {
         return this.bufferTolerance;
@@ -275,6 +352,11 @@ public class ConflationPreprocessedNetwork {
         return this.RTree;
     }
 
+
+    /**
+     * Used in saveSimplifiedNetwork : builds new network with segments as links
+     * @return simplified network
+     */
     public Network createSimplifiedNetworkFromSegments(){
         LOG.info("Creating simplified network");
         LOG.info("Creating nodes");
@@ -329,6 +411,15 @@ public class ConflationPreprocessedNetwork {
     }
 
 
+    /**
+     * to visualize if segments were made correctly : creates and saves new network with segments as links
+     * @param path where simplified Network is saved (as .xml file)
+     */
+    protected void saveSimplifiedNetwork(String path) {
+        Network simplifiedNet = createSimplifiedNetworkFromSegments();
+        new NetworkWriter(simplifiedNet).write(path);
+    }
+
     public HashMap<Long,Segment> getSegments() {
         return segmentMap;
     }
@@ -337,6 +428,14 @@ public class ConflationPreprocessedNetwork {
         return preprocessedNodeMap;
     }
 
+
+    /**
+     * Cuts Segment into 2 new segments
+     * @param segmentId Segment to be cut
+     * @param cutLinkIndex Link on which the cut is to be done
+     * @param cutPosition in [0,1]: position in link where cut is to be done. If in ]0,1[, link cut into 2 new links. Else (<=> in {0,1}), no new link made & segment cut on the joint between 2 links
+     * @return List of newly created Segment ids
+     */
     public ArrayList<Long> cutSegment(Long segmentId, int cutLinkIndex, double cutPosition) {
         Segment segment  = segmentMap.get(segmentId);
         removeSegment(segmentId);
@@ -417,9 +516,20 @@ public class ConflationPreprocessedNetwork {
         newSegmentIdsList.add(createSegment(newSegmentLinksList1));
         newSegmentIdsList.add(createSegment(newSegmentLinksList2));
 
+        for (long id : newSegmentIdsList) {
+            Segment newSegment = segmentMap.get(id);
+            addOneSegmentInRTree(newSegment);
+        }
+
         return newSegmentIdsList;
     }
 
+
+    /**
+     * Creates new node in this.network with random Id
+     * @param nodeLocation Coordinates of node to be created
+     * @return new Node
+     */
     private Node createNodeWithRandomId(Coord nodeLocation) {
         // TODO Méthode provisoire pour créer un id qui n'existe pas dans le réseau
         Id<Node> newId = Id.createNodeId((long) (Math.random()*2000000000));
@@ -430,6 +540,7 @@ public class ConflationPreprocessedNetwork {
         network.addNode(newNode);
         return newNode;
     }
+
 
     private Id<Link> createRandomLinkId() {
         Id<Link> newId = Id.createLinkId((long) (Math.random()*2000000000));
@@ -446,6 +557,16 @@ public class ConflationPreprocessedNetwork {
         network.addLink(link);
     }
 
+
+    /**
+     * Used in cutSegment : Gives position of a point in parent link from position in child link
+     * Position is in [0,1], 0 being fromNode, 1 being toNode
+     * parentLink : link in original Network
+     * child link : link in current network resulting from cuts in parentLink
+     * @param childId id of childLink
+     * @param position position of point in childLink
+     * @return position of same point in parentLink
+     */
     private double getPositionInParent(Id<Link> childId, double position) {
         int childPlacement = childrenPlacementInParentMap.get(childId);
         double initCut = parentLinksCutPositionMap.get( childrenLinksParentIdMap.get(childId) ).get(childPlacement);
@@ -453,6 +574,11 @@ public class ConflationPreprocessedNetwork {
         return position * (finalCut - initCut) + initCut;
     }
 
+
+    /**
+     * Prints Link id and, if link results from cut, position of fromNode and toNode in parent link
+     * @param linkId id of Link to be printed
+     */
     public void printLink(Id<Link> linkId) {
         System.out.print(linkId.toString());
         if (childrenLinksParentIdMap.containsKey(linkId)) {
