@@ -146,6 +146,12 @@ public class Polyline {
     }
 
 
+    /**
+     * Return list of link ids without these removed because of Cuts
+     * Each element of outer list (lists of Link ids) represents a segment
+     * Each element of inner lists is a link id in the segment the link belongs to
+     * @return list of lists of the Polyline's Link Ids
+     */
     public ArrayList<ArrayList<Id<Link>>> getLinkIdsWithCuts() {
         ArrayList<ArrayList<Id<Link>>> links = new ArrayList<>();
         for (int segmentIndex = 0; segmentIndex < segments.size(); segmentIndex++) {
