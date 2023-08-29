@@ -8,19 +8,32 @@ import org.matsim.api.core.v01.network.Node;
 import java.util.ArrayList;
 import java.util.HashSet;
 
-
+/**
+ * Object composed containing a list of adjacent segments
+ * First and last segments can be cut at some point before their end
+ * Polyline therefore contains cut objects (initCut and finalCut)
+ */
 public class Polyline {
     private ArrayList<Segment> segments;
     private Cut initialCut;
     private Cut finalCut;
 
+    /**
+     * Constructor
+     * @param segments List of the Polyline's segments
+     */
     Polyline(ArrayList<Segment> segments) {
         this.segments = segments;
         this.initialCut = new Cut(0, false, 0);
         this.finalCut = new Cut(segments.get(segments.size()-1).getLinks().size()-1, false, 1);
     }
 
-
+    /**
+     * Constructor in case there are cuts
+     * @param segments List of the Polyline's segments
+     * @param initialCut cut on the origin point of the Polyline
+     * @param finalCut cut on the end point of the Polyline
+     */
     Polyline(ArrayList<Segment> segments, Cut initialCut, Cut finalCut) {
         this.segments = segments;
         this.initialCut = initialCut;
@@ -42,17 +55,27 @@ public class Polyline {
         return finalCut;
     }
 
-
+    /**
+     * Returns the origin node of the first segment regardless of initialCut
+     * @return fromNode regardless of initialCut
+     */
     public Node getFromNodeWithoutCut() {
         return segments.get(0).getFromNode();
     }
 
 
+    /**
+     * Returns the end node of the last segment regardless of finalCut
+     * @return toNode regardless of finalCut
+     */
     public Node getToNodeWithoutCut() {
         return segments.get(segments.size()-1).getToNode();
     }
 
-
+    /**
+     * Returns the coordinates of the origin point of the Polyline taking initialCut into account
+     * @return fromCoord taking initCut into account
+     */
     public Coord getFromCoordWithCut() {
         Link initialLink = segments.get(0).getLinks().get(initialCut.getCutLinkIndex());
         Coord fromNodeCoord = initialLink.getFromNode().getCoord();
@@ -64,7 +87,10 @@ public class Polyline {
         return fromNodeCoord;
     }
 
-
+    /**
+     * Returns the coordinates of the end point of the Polyline taking finalCut into account
+     * @return toCoord taking finalCut into account
+     */
     public Coord getToCoordWithCut() {
         Link finalLink = segments.get(segments.size()-1).getLinks().get(finalCut.getCutLinkIndex());
         Coord toNodeCooord = finalLink.getToNode().getCoord();
@@ -77,6 +103,12 @@ public class Polyline {
     }
 
 
+    /**
+     * A List of lists of Localized Vectors (origin point + vector) :
+     * Each element of the outer List (inner lists) represents a segment containing links
+     * Each element of the inner Lists represents a Link
+     * @return list of lists of Localized Vectors representing the Polyline's links
+     */
     public ArrayList<ArrayList<LocalizedVector>> getLinkLocalizedVectorsWithCuts() {
         ArrayList<ArrayList<LocalizedVector>> links = new ArrayList<>();
         for (int segmentIndex = 0; segmentIndex < segments.size(); segmentIndex++) {
