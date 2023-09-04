@@ -1286,14 +1286,14 @@ CodeHeap 'non-nmethods': size=5760Kb used=1534Kb max_used=1619Kb free=4225Kb
 
 Compilation events (20 events):
 Event: 37.906 Thread 0x0000020006c01720 nmethod 3486 0x000002006d1f3990 code [0x000002006d1f3b00, 0x000002006d1f3e40]
-Event: 37.908 Thread 0x0000020006c01720 3488       4       main.Shape::containsVertice (12 bytes)
+Event: 37.908 Thread 0x0000020006c01720 3488       4       main.Polygon::containsVertice (12 bytes)
 Event: 37.909 Thread 0x0000020006c04ec0 3489       4       main.LocalizedVector::<init> (15 bytes)
 Event: 37.913 Thread 0x0000020006c04ec0 nmethod 3489 0x000002006d1f3f10 code [0x000002006d1f4080, 0x000002006d1f42f8]
 Event: 37.913 Thread 0x0000020006c04ec0 3492       4       java.util.ArrayList::set (24 bytes)
 Event: 37.918 Thread 0x0000020006c01720 nmethod 3488 0x000002006d1f4390 code [0x000002006d1f4520, 0x000002006d1f4858]
-Event: 37.920 Thread 0x0000020006c01720 3490       4       main.Shape::addVertice (33 bytes)
+Event: 37.920 Thread 0x0000020006c01720 3490       4       main.Polygon::addVertice (33 bytes)
 Event: 37.920 Thread 0x0000020006c04ec0 nmethod 3492 0x000002006d1f4b10 code [0x000002006d1f4c80, 0x000002006d1f4f50]
-Event: 37.920 Thread 0x0000020006c04ec0 3491       4       main.Shape::replaceVerticeCoord (14 bytes)
+Event: 37.920 Thread 0x0000020006c04ec0 3491       4       main.Polygon::replaceVerticeCoord (14 bytes)
 Event: 37.928 Thread 0x0000020006c04ec0 nmethod 3491 0x000002006d1f5110 code [0x000002006d1f52a0, 0x000002006d1f5710]
 Event: 37.928 Thread 0x0000020006c04ec0 3487       4       main.NetworkConflator::cutVerticalSymmetry (68 bytes)
 Event: 37.949 Thread 0x000002007cc9feb0 3493 %     3       main.NetworkConflator::overlapArea @ 1709 (2180 bytes)

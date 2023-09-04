@@ -1,13 +1,11 @@
 package main;
 
-import it.unimi.dsi.fastutil.Hash;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.network.Link;
 import org.matsim.api.core.v01.network.Network;
-import org.matsim.api.core.v01.network.NetworkWriter;
 import org.matsim.core.network.NetworkUtils;
 
 import java.util.*;
@@ -534,34 +532,34 @@ public class NetworkConflator {
             }
         }
 
-        /// Saving the shape calculated so far unto a graph structure
-        Shape shape = new Shape();
+        /// Saving the polygon calculated so far unto a graph structure
+        Polygon polygon = new Polygon();
 
         if (cutCase.get(0) != 0) {
-            shape.addVertice(10, leftCut.get(0));
-            shape.addVertice(11, leftCut.get(1));
-            shape.addSide(10, 11);
+            polygon.addVertice(10, leftCut.get(0));
+            polygon.addVertice(11, leftCut.get(1));
+            polygon.addSide(10, 11);
         }
         if (cutCase.get(1) != 0) {
-            shape.addVertice(20, rightCut.get(0));
-            shape.addVertice(21, rightCut.get(1));
-            shape.addSide(20, 21);
+            polygon.addVertice(20, rightCut.get(0));
+            polygon.addVertice(21, rightCut.get(1));
+            polygon.addSide(20, 21);
         }
 
         for (int i=0; i<4; i++) {
             if (lcut < parallelogram.get(i).getX() && parallelogram.get(i).getX() < rcut) {
-                shape.addVertice(i, parallelogram.get(i));
+                polygon.addVertice(i, parallelogram.get(i));
             }
         }
 
         boolean centralVerticeAdded = false;
         for (int i=0; i<4; i++) { // Adding central parallelogram vertices and sides
-            if (shape.containsVertice(i)) {
+            if (polygon.containsVertice(i)) {
                 centralVerticeAdded = true;
                 int j = i+1;
-                while (!shape.containsVertice(j%4)) { j = j+1; }
+                while (!polygon.containsVertice(j%4)) { j = j+1; }
                 if (j == i+1) {
-                    shape.addSide(i,j%4);
+                    polygon.addSide(i,j%4);
                 } else {
                     boolean isCutLeft = false;
                     boolean isCutRight = false;
@@ -570,42 +568,42 @@ public class NetworkConflator {
                         else if (rcut < parallelogram.get(k%4).getX()) { isCutRight = true; }
                     }
                     if (isCutRight && !isCutLeft) {
-                        shape.addSide(i,20);
-                        shape.addSide(21,j%4);
+                        polygon.addSide(i,20);
+                        polygon.addSide(21,j%4);
                     } else if (isCutLeft && !isCutRight) {
-                        shape.addSide(i,11);
-                        shape.addSide(10,j%4);
+                        polygon.addSide(i,11);
+                        polygon.addSide(10,j%4);
                     } else {
                         if (parallelogram.get(i).getY() < 0) {
-                            shape.addSide(i,20);
-                            shape.addSide(21,11);
-                            shape.addSide(10,j%4);
+                            polygon.addSide(i,20);
+                            polygon.addSide(21,11);
+                            polygon.addSide(10,j%4);
                         } else {
-                            shape.addSide(i,11);
-                            shape.addSide(10,20);
-                            shape.addSide(21,j%4);
+                            polygon.addSide(i,11);
+                            polygon.addSide(10,20);
+                            polygon.addSide(21,j%4);
                         }
                     }
                 }
             }
         }
         if (!centralVerticeAdded) {
-            shape.addSide(20, 10);
-            shape.addSide(11, 21);
+            polygon.addSide(20, 10);
+            polygon.addSide(11, 21);
         }
 
         /// Expressing in seg2 base (as everything else is in seg1 base, first express seg2 in seg1 base then convert all to seg2 base)
         LocalizedVector targetSegInRefSegBase = targetSeg.expressInOrthoNBase(refSeg.getFromCoord(), refSeg.getVectorCoord());
         Coord substractedVector = VectOp.extPdt(-1, targetSegInRefSegBase.getFromCoord());
-        for (int i : shape.getCoordinatesMap().keySet()) {
-            shape.replaceVerticeCoord(i, VectOp.expressInOrthoNBase(VectOp.addVectors(shape.getVerticeCoord(i), substractedVector), targetSegInRefSegBase.getVectorCoord()));
+        for (int i : polygon.getCoordinatesMap().keySet()) {
+            polygon.replaceVerticeCoord(i, VectOp.expressInOrthoNBase(VectOp.addVectors(polygon.getVerticeCoord(i), substractedVector), targetSegInRefSegBase.getVectorCoord()));
         }
 
         /// Saving a "width profile" (h = f(x)) in order to integrate between lcut and rcut
         rcut = VectOp.length(targetSeg.getVectorCoord()) + targetTolerance;
 
         ArrayList<Double> xList = new ArrayList<>();
-        ArrayList<Double> hList = shape.getWidthProfile(xList);
+        ArrayList<Double> hList = polygon.getWidthProfile(xList);
 
         // Computing the final area accounting for left and right cuts on seg2
         int i0 = 0;

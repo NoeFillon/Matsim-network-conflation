@@ -55,9 +55,9 @@ public class Polyline {
         return finalCut;
     }
 
+
     /**
-     * Returns the origin node of the first segment regardless of initialCut
-     * @return fromNode regardless of initialCut
+     * @return origin node of the first segment regardless of initialCut
      */
     public Node getFromNodeWithoutCut() {
         return segments.get(0).getFromNode();
@@ -65,16 +65,14 @@ public class Polyline {
 
 
     /**
-     * Returns the end node of the last segment regardless of finalCut
-     * @return toNode regardless of finalCut
+     * @return end node of the last segment regardless of finalCut
      */
     public Node getToNodeWithoutCut() {
         return segments.get(segments.size()-1).getToNode();
     }
 
     /**
-     * Returns the coordinates of the origin point of the Polyline taking initialCut into account
-     * @return fromCoord taking initCut into account
+     * @return coordinates of the origin point of the Polyline taking initialCut into account
      */
     public Coord getFromCoordWithCut() {
         Link initialLink = segments.get(0).getLinks().get(initialCut.getCutLinkIndex());
@@ -88,8 +86,7 @@ public class Polyline {
     }
 
     /**
-     * Returns the coordinates of the end point of the Polyline taking finalCut into account
-     * @return toCoord taking finalCut into account
+     * @return coordinates of the end point of the Polyline taking finalCut into account
      */
     public Coord getToCoordWithCut() {
         Link finalLink = segments.get(segments.size()-1).getLinks().get(finalCut.getCutLinkIndex());
@@ -170,6 +167,9 @@ public class Polyline {
     }
 
 
+    /**
+     * @return sum of the lengths of all links removing cutted parts
+     */
     public double getLengthWithCuts() {
         double totalLength = 0;
         ArrayList<ArrayList<LocalizedVector>> linksInSegments = getLinkLocalizedVectorsWithCuts();
@@ -183,6 +183,10 @@ public class Polyline {
     }
 
 
+    /**
+     * @param index position in Polyline of the segment one wants the LocalizedVector of
+     * @return LocalizedVector of desired segment removing cutted parts
+     */
     public LocalizedVector getSegmentLocalizedVectorWithCut(int index) {
         if (index >= segments.size()) {
             return null;
@@ -200,6 +204,11 @@ public class Polyline {
     }
 
 
+    /**
+     * Computes the distance between Polyline and point
+     * @param point Coordinates of point one wants the distance with Polyline
+     * @return Shortest distance between point and Polyline
+     */
     public double distanceWithPoint(Coord point) {
         BidimensionalIndex cutLinkIndex = new BidimensionalIndex(0,0);
         double pointPos = closestPointInPolyline(point, cutLinkIndex);
@@ -207,6 +216,13 @@ public class Polyline {
     }
 
 
+    /**
+     * Looks for the closest point in Polyline from closeTerminalNode. If points are closer than tolerance, creates new Cut there
+     * @param closeTerminalNode Node one wants to interpolate from
+     * @param tolerance maximal distance between closeTerminalNode and closest point in Polyline
+     * @param cutOnEnd decides if new Cut is initialCut (false) or finalCut (true)
+     * @return New Polyline, with new Cut if it was possible
+     */
     public Polyline interpolate(Coord closeTerminalNode, double tolerance, boolean cutOnEnd) {
         // Looking for the closest point in this
         BidimensionalIndex cutNodeIndex = closestVerticeInPolyline(closeTerminalNode);
@@ -219,6 +235,7 @@ public class Polyline {
         } else {
             cutCoord = segments.get(cutNodeIndex.i).getLinks().get(cutNodeIndex.j).getToNode().getCoord();
         }
+
 
         if (VectOp.distance(closeTerminalNode, cutCoord) < tolerance) {
             // Cut segment on link end if close enough, don't cut links
@@ -327,6 +344,14 @@ public class Polyline {
     }
 
 
+    /**
+     * Finds index for closest Polyline vertice (from/toNode of a link) from parameter point.
+     * @param point Point one wants to find closet vertice from
+     * @return closest vertice in Polyline
+     * First index in return is segment placement in Polyline, second is Link placement in Segment.
+     * Second index code : -2 for fromNodeWithCut ; -1 for toNodeWithCut.
+     * Return points to a Link, vertice is link's toNode.
+     */
     private BidimensionalIndex closestVerticeInPolyline(Coord point) {
         // Finding which node of the links of the segments in this Polyline is the closest to point
         int minLinkIndex = 0;
@@ -361,7 +386,7 @@ public class Polyline {
         }
 
         if (minimalLinkToNode.i == segments.size()-1 && minimalLinkToNode.j == maxLinkIndex) {
-            minimalLinkToNode.j = -2;
+            minimalLinkToNode.j = -1;
         }
 
         // Code: -2 for fromNodeWithCut ; -1 for toNodeWithCut
@@ -369,6 +394,12 @@ public class Polyline {
     }
 
 
+    /**
+     * Finds closest Polyline point from parameter point
+     * @param point coordinates of the point one wants to find closest Polyline point from (parameter point)
+     * @param cutLinkIndex Can initially be any BidimentionalIndex, when function is executed, gets placement of the link the closest point belongs to
+     * @return position of closest point in link indicated by cutLinkIndex (position: from 0 = fromNode to 1 = toNode)
+     */
     public double closestPointInPolyline(Coord point, BidimensionalIndex cutLinkIndex) {
         // cutLinkIndex can be any BidimensionalIndex, It's getting changed anyway
 
@@ -448,12 +479,22 @@ public class Polyline {
     }
 
 
+    /**
+     * @param bidimensionalIndex placement of Segment and Link in Polyline
+     * @param pos Position of point in Link (from 0 = fromNode to 1 = toNode)
+     * @return Coordinates of the point indicated by bidimentionalIndex and pos
+     */
     public Coord polylinePointCoord(BidimensionalIndex bidimensionalIndex, double pos) {
         Link link = this.segments.get(bidimensionalIndex.i).getLinks().get(bidimensionalIndex.j);
         return VectOp.addVectors(VectOp.extPdt(1-pos, link.getFromNode().getCoord()), VectOp.extPdt(pos, link.getToNode().getCoord()));
     }
 
-
+    /**
+     * Useless function
+     * @param potentialCandidates
+     * @param stitchOnToNode
+     * @return
+     */
     public HashSet<Polyline> stitch(HashSet<Segment> potentialCandidates, boolean stitchOnToNode) {
         HashSet<Polyline> finalSet = new HashSet<>();
         for (Segment segment : potentialCandidates) {
@@ -479,8 +520,11 @@ public class Polyline {
     }
 
 
+    /**
+     * Removes False cuts (ex. isLinkCut = true but cutPosition is 0 or 1 => set isLinkCut to false)
+     */
     protected void correctFalseCuts() {
-        if (initialCut.isLinkCut && initialCut.cutLinkIndex == 0 && initialCut.cutPosition ==1) {
+        if (initialCut.isLinkCut && initialCut.cutLinkIndex == 0 && initialCut.cutPosition == 0) {
             initialCut.isLinkCut = false;
         }
         if (finalCut.isLinkCut && finalCut.cutLinkIndex == segments.get(segments.size()-1).getLinks().size()-1 && finalCut.cutPosition == 1) {
@@ -489,6 +533,11 @@ public class Polyline {
     }
 
 
+    /**
+     * Checks if other Polyline is equal to this (same segments and same cuts)
+     * @param pl other Polyline to check
+     * @return true if equal, false otherwies
+     */
     public boolean equals(Polyline pl) {
         this.correctFalseCuts();
         pl.correctFalseCuts();
@@ -498,28 +547,47 @@ public class Polyline {
     }
 
 
+    /**
+     * Cut in a Polyline if Polyline have been interpolated in case one of its endpoints wasn't close enough to refSegment's endpoints
+     * Contains information about Cut's location
+     */
     class Cut {
         private int cutLinkIndex; // Index of the cutLink on the segment links list
         private boolean isLinkCut;
         private double cutPosition; // between 0 and 1 relative to the length of the link
 
+
+        /**
+         * @param cutLinkIndex represents the Link this Cut is in (index being link placement in Segment)
+         * @param isLinkCut true if link is cut, false otherwise
+         * @param cutPosition position of Cut in Link (from 0 = Link's fromNode to 1 = Link's toNode)
+         */
         Cut(int cutLinkIndex, boolean isLinkCut, double cutPosition) {
             this.cutLinkIndex = cutLinkIndex;
             this.isLinkCut = isLinkCut;
             this.cutPosition = cutPosition;
         }
 
+
+        /**
+         * Checks if other cut is equal to this (i.e. with same isLinkCut status, cutLinkIndex and cutPosition)
+         * @param cut other Cut
+         * @return true it equal, false otherwise
+         */
         public boolean equals(Cut cut) {
             return (isLinkCut==cut.getIsLinkCut() && cutLinkIndex==cut.getCutLinkIndex() && Math.abs(cutPosition-cut.getCutPosition())<0.001);
         }
+
 
         public int getCutLinkIndex() {
             return this.cutLinkIndex;
         }
 
+
         public boolean getIsLinkCut() {
             return this.isLinkCut;
         }
+
 
         public double getCutPosition() {
             return this.cutPosition;
