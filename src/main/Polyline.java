@@ -398,7 +398,7 @@ public class Polyline {
      * Finds closest Polyline point from parameter point
      * @param point coordinates of the point one wants to find closest Polyline point from (parameter point)
      * @param cutLinkIndex Can initially be any BidimentionalIndex, when function is executed, gets placement of the link the closest point belongs to
-     * @return position of closest point in link indicated by cutLinkIndex (position: from 0 = fromNode to 1 = toNode)
+     * @return position of closest point in link indicated by cutLinkIndex (position: between 0 = fromNode and 1 = toNode)
      */
     public double closestPointInPolyline(Coord point, BidimensionalIndex cutLinkIndex) {
         // cutLinkIndex can be any BidimensionalIndex, It's getting changed anyway

@@ -8,16 +8,25 @@ import org.matsim.api.core.v01.network.Node;
 import java.util.ArrayList;
 import java.util.HashSet;
 
+
+/**
+ * Elementary object of ConflationPreprocessedNetwork : contains several links, starts and ends on terminal nodes,
+ * Inbetween nodes are all intermediate nodes.
+ */
 public class Segment {
     private ArrayList<Link> links;
     private final long id;
     private HashSet<BidimensionalIndex> RTreeBranchesSet = new HashSet<>();
 
+    /**
+     * Constructor
+     * @param links List of links contained in Segment
+     * @param id id given to the Segment
+     */
     public Segment(ArrayList<Link> links, long id) {
         this.id = id;
         this.links = links;
     }
-
 
     public Node getFromNode() {
         return links.get(0).getFromNode();
@@ -36,7 +45,9 @@ public class Segment {
         return nodes;
     }
 
-
+    /**
+     * @return All nodes except fromNode and toNode
+     */
     public ArrayList<Node> getIntermediateNodes() {
         ArrayList<Node> nodes = new ArrayList<Node>();
         for (Link link: this.links) {
@@ -46,7 +57,6 @@ public class Segment {
         return nodes;
     }
 
-
     public ArrayList<Link> getLinks() {
         return links;
     }
@@ -55,12 +65,20 @@ public class Segment {
         return id;
     }
 
+
+    /**
+     * @return Coords of the vector going from fromNode to toNode
+     */
     public Coord getCoord() {
         Coord fromCoord = this.getFromNode().getCoord();
         Coord toCoord = this.getToNode().getCoord();
         return VectOp.addVectors(toCoord, VectOp.extPdt(-1,fromCoord));
     }
 
+
+    /**
+     * @return straight line distance between fromNode and toNode
+     */
     public double getStraightLineLength() {
         return VectOp.length(this.getCoord());
     }
@@ -73,41 +91,14 @@ public class Segment {
         return VectOp.getUnitVector(this.getCoord());
     }
 
-    public ArrayList<Coord> getBufferBorder(double tolerance, double leftOffset, boolean fromNodeProlong, boolean toNodeProlong) {
-        /*
-        Return one side of the buffer border
-        Output : ArrayList<Coord> : contains departure point, vector to endpoint
-        Input : leftRightOffset : offset of the returned segment :
-            +1 corresponds to a distance of tolerance to the left of the segment
-            -1, to the right
-         */
-        Coord segmentVector = this.getCoord();
-        Coord unitVector = VectOp.getUnitVector(segmentVector);
-        Coord fromNodeCoord = this.getFromNode().getCoord();
-        Coord offset = VectOp.extPdt(leftOffset, VectOp.piRotation(unitVector));
 
-        Coord departurePoint = VectOp.addVectors(fromNodeCoord, offset);
-        if (fromNodeProlong) {
-            departurePoint = VectOp.addVectors(departurePoint, VectOp.extPdt(-tolerance, unitVector));
-        }
-        int nOfProlong = 0;
-        if (fromNodeProlong) {
-            nOfProlong+=1;
-        } if (toNodeProlong) {
-            nOfProlong+=1;
-        }
-        Coord borderVector = VectOp.addVectors(segmentVector, VectOp.extPdt(nOfProlong*tolerance,unitVector));
-
-        ArrayList<Coord> bufferBorder = new ArrayList<>();
-        bufferBorder.add(departurePoint);
-        bufferBorder.add(borderVector);
-        return bufferBorder;
-    }
-
+    /**
+     * Finds closest Segment point from parameter point
+     * @param point coordinates of the point one wants to find closest Segment point from (parameter point)
+     * @param cutLinkIndexWrapper Can initially have any value, when function is executed, gets placement in Segment of the link the closest point belongs to
+     * @return position of closest point in link indicated by value contained in cutLinkIndexWrapper (position: between 0 = fromNode and 1 = toNode)
+     */
     public double closestPointInSegment(Coord point, ArrayList<Integer> cutLinkIndexWrapper) {
-        // cutLinkIndexWrapper can be any list, it's cleaned anyway
-        // It's used to return the link index, because it's impossible to return 2 values
-
         // Finding which node of the links of the segments in this Polyline is the closest to point
         int minimalLinkToNode = -1;
         double minimalExistingNodeDistance = VectOp.distance(getFromNode().getCoord(), point);
@@ -151,29 +142,39 @@ public class Segment {
     }
 
 
+    /**
+     * Gives the coordinates of point belonging to Segment indicated by the link it belongs to and its position in said link
+     * @param index placement of link in Segment
+     * @param pos position of point in link (between 0 = fromNode and 1 = toNode)
+     * @return Coords of the point of Segment indicated by index and pos
+     */
     public Coord segmentPointCoord(int index, double pos) {
         Link link = this.getLinks().get(index);
         return VectOp.addVectors(VectOp.extPdt(1-pos, link.getFromNode().getCoord()), VectOp.extPdt(pos, link.getToNode().getCoord()));
     }
 
+
+    /**
+     * Computes the distance between Segment and point
+     * @param point Coordinates of point one wants the distance with Segment
+     * @return Shortest distance between point and Segment
+     */
     public double distanceWithPoint(Coord point) {
         ArrayList<Integer> linkIndex = new ArrayList<>();
         double pos = closestPointInSegment(point, linkIndex);
         return VectOp.distance(point, segmentPointCoord(linkIndex.get(0), pos));
     }
 
+
+    /**
+     * Adds a branch in the Set of R-Tree branches Segment belongs to
+     * @param branch branch to add
+     */
     public void addRTreeBranch(BidimensionalIndex branch) {
         this.RTreeBranchesSet.add(branch);
     }
 
     public HashSet<BidimensionalIndex> getRTreeBranchesSet() {
         return this.RTreeBranchesSet;
-    }
-
-    public void print() {
-        System.out.print("Segment "+this.id);
-        for (Link link : this.links) {
-
-        }
     }
 }
