@@ -31,21 +31,24 @@ public class NetworkConflator {
 
     /**
      * Constructor for NetworkConflator, saves the parameters as NetworkConflator object attributes
-     * @param refPath path to the reference network (refNet)
-     * @param refNodeTolerance tolerance for node location in refNet
-     * @param refBufferTolerance tolerance for segment location in refNet
-     * @param targetPath path to the target network (targetNet)
-     * @param targetNodeTolerance tolerance for node location in targetNet
-     * @param targetBufferTolerance tolerance for segment location in targetNet
-     * @param rTreeSquareDimension rTree associates neighbouring segments by making a grid. Segments crossing same squarein grid placed in same rTree branch. One segment can be in several branches. rTreeSquareDimension must be > refBufferTolerance + targetBufferTolerance
-     * @param modesToKeep keep in Networks only the links allowing one mode in modesToKeep
-     * @param saveSimplifiedNetworks after making segments out of several links (between terminal nodes) save the segments as links in a new .xml file
-     * @param simplifiedRefNetworkSavingPath paths where simplified refNet is saved
+     *
+     * @param refPath                           path to the reference network (refNet)
+     * @param refNodeTolerance                  tolerance for node location in refNet
+     * @param refBufferTolerance                tolerance for segment location in refNet
+     * @param allRefNodesTerminal               if true, forces nodes to be terminal and all segments to be only one link in reference preprocessed network
+     * @param targetPath                        path to the target network (targetNet)
+     * @param targetNodeTolerance               tolerance for node location in targetNet
+     * @param targetBufferTolerance             tolerance for segment location in targetNet
+     * @param allTargetNodesTerminal            if true, forces nodes to be terminal and all segments to be only one link in target preprocessed network
+     * @param rTreeSquareDimension              rTree associates neighbouring segments by making a grid. Segments crossing same squarein grid placed in same rTree branch. One segment can be in several branches. rTreeSquareDimension must be > refBufferTolerance + targetBufferTolerance
+     * @param modesToKeep                       keep in Networks only the links allowing one mode in modesToKeep
+     * @param savePreprocessedNetworks          after making segments out of several links (between terminal nodes) save the segments as links in a new .xml file
+     * @param simplifiedRefNetworkSavingPath    paths where simplified refNet is saved
      * @param simplifiedTargetNetworkSavingPath paths where simplified targetNet is saved
      */
-    public NetworkConflator(String refPath, double refNodeTolerance, double refBufferTolerance,
-                            String targetPath, double targetNodeTolerance, double targetBufferTolerance,
-                            double rTreeSquareDimension, HashSet<String> modesToKeep, boolean saveSimplifiedNetworks,
+    public NetworkConflator(String refPath, double refNodeTolerance, double refBufferTolerance, boolean allRefNodesTerminal,
+                            String targetPath, double targetNodeTolerance, double targetBufferTolerance, boolean allTargetNodesTerminal,
+                            double rTreeSquareDimension, HashSet<String> modesToKeep, boolean savePreprocessedNetworks,
                             String simplifiedRefNetworkSavingPath, String simplifiedTargetNetworkSavingPath) {
 
         if (rTreeSquareDimension <= refBufferTolerance + targetBufferTolerance) {
@@ -63,7 +66,7 @@ public class NetworkConflator {
         this.refNet.preprocessNetwork(Math.PI/6, modesToKeep, false);
         this.targetNet.preprocessNetwork(Math.PI/6, modesToKeep, false);
 
-        if (saveSimplifiedNetworks) {
+        if (savePreprocessedNetworks) {
             this.refNet.saveSimplifiedNetwork(simplifiedRefNetworkSavingPath);
             this.targetNet.saveSimplifiedNetwork(simplifiedTargetNetworkSavingPath);
         }
@@ -124,6 +127,8 @@ public class NetworkConflator {
      * @param goodPotentialMatches initially empty Set of good candidates for refSegment, can not be empty if function is calling itself
      */
     private void populateOneSegment(Segment refSegment, HashMap<Long, HashSet<ScoredPolyline>> goodPotentialMatches) {
+        int refNOfLinks = refSegment.getLinks().size();
+        double refSegStraightLineLength = refSegment.getStraightLineLength();
         HashSet<Segment> potentialCandidateMatches = findSegmentCandidateMatches(refSegment);
 
         HashSet<Polyline> candidates = buildPolylineCandidateMatches(refSegment, potentialCandidateMatches);
@@ -136,8 +141,10 @@ public class NetworkConflator {
         // finding if goodPotentialMatches has actual good candidates
         boolean goodCandidateExists = false;
         for (ScoredPolyline candidate : candidateMatches) {
-            double fromNodesDistance = VectOp.distance(candidate.getPolyline().getFromCoordWithCut(), refSegment.getFromNode().getCoord());
-            double toNodesDistance = VectOp.distance(candidate.getPolyline().getToCoordWithCut(), refSegment.getToNode().getCoord());
+            Coord fromCoord = candidate.getPolyline().getFromCoordWithCut();
+            Coord toCoord = candidate.getPolyline().getToCoordWithCut();
+            double fromNodesDistance = VectOp.distance(fromCoord, refSegment.getFromNode().getCoord());
+            double toNodesDistance = VectOp.distance(toCoord, refSegment.getToNode().getCoord());
             if (fromNodesDistance < nodeTolerance && toNodesDistance < nodeTolerance) {
                 goodCandidateExists = true;
                 break;
@@ -162,7 +169,7 @@ public class NetworkConflator {
             sortedCandidateMatches.sort(Comparator.comparingDouble(sp -> sp.score));
 
             ArrayList<Long> newSegments = new ArrayList<>();
-            for (int i = sortedCandidateMatches.size()-1; i >0; i--) {
+            for (int i = sortedCandidateMatches.size()-1; i > 0; i--) {
                 Polyline candidate = sortedCandidateMatches.get(i).getPolyline();
                 Coord candidateFromCoord = candidate.getFromCoordWithCut();
                 Coord candidateToCoord = candidate.getToCoordWithCut();
@@ -172,7 +179,8 @@ public class NetworkConflator {
                     ArrayList<Integer> linkIndex = new ArrayList<>();
                     double pos = refSegment.closestPointInSegment(candidateToCoord, linkIndex);
                     int index = linkIndex.get(0);
-                    if (VectOp.distance(candidateToCoord, refSegment.segmentPointCoord(index, pos)) <= nodeTolerance) {
+                    boolean nullLink = index + pos < 0.0001 || index + pos > refNOfLinks-0.0001;
+                    if (VectOp.distance(candidateToCoord, refSegment.segmentPointCoord(index, pos)) <= nodeTolerance && !nullLink) {
                         newSegments = refNet.cutSegment(refSegment.getId(), index, pos);
                         break;
                     }
@@ -180,23 +188,31 @@ public class NetworkConflator {
                     ArrayList<Integer> linkIndex = new ArrayList<>();
                     double pos = refSegment.closestPointInSegment(candidateFromCoord, linkIndex);
                     int index = linkIndex.get(0);
-                    if (VectOp.distance(candidateFromCoord, refSegment.segmentPointCoord(index, pos)) <= nodeTolerance) {
+                    boolean nullLink = index + pos < 0.0001 || index + pos > refNOfLinks-0.0001;
+                    if (VectOp.distance(candidateFromCoord, refSegment.segmentPointCoord(index, pos)) <= nodeTolerance && !nullLink) {
                         newSegments = refNet.cutSegment(refSegment.getId(), index, pos);
                         break;
                     }
                 } else {                                                                        // No node is close
                     ArrayList<Integer> linkIndex1 = new ArrayList<>();
                     double pos1 = refSegment.closestPointInSegment(candidateFromCoord, linkIndex1);
-                    Coord point1 = refSegment.segmentPointCoord(linkIndex1.get(0), pos1);
+                    int index1 = linkIndex1.get(0);
+                    Coord point1 = refSegment.segmentPointCoord(index1, pos1);
                     ArrayList<Integer> linkIndex2 = new ArrayList<>();
                     double pos2 = refSegment.closestPointInSegment(candidateToCoord, linkIndex2);
-                    Coord point2 = refSegment.segmentPointCoord(linkIndex2.get(0), pos2);
-                    if (VectOp.distance(candidateFromCoord, point1) <= nodeTolerance && VectOp.distance(candidateToCoord, point2) <= nodeTolerance) {
-                        newSegments = refNet.cutSegment(refSegment.getId(), linkIndex1.get(0), pos1);
-                        if (linkIndex2.get(0) == linkIndex1.get(0)) {
+                    int index2 = linkIndex2.get(0);
+                    Coord point2 = refSegment.segmentPointCoord(index2, pos2);
+                    boolean nullLink = index1 + pos1 < 0.0001 || index2 + pos2 > refNOfLinks-0.0001 || (index2+pos2) - (index1+pos1) < 0.0002;
+                    if (VectOp.distance(candidateFromCoord, point1) <= nodeTolerance && VectOp.distance(candidateToCoord, point2) <= nodeTolerance && !nullLink) {
+                        if (pos1 > 0.9999) {
+                            index1 += 1;
+                            pos1 = 0;
+                        }
+                        newSegments = refNet.cutSegment(refSegment.getId(), index1, pos1);
+                        if (index2 == index1) {
                             pos2 = pos2 - pos1;
                         }
-                        ArrayList<Long> otherNewSegments = refNet.cutSegment(newSegments.get(1), linkIndex2.get(0) - linkIndex1.get(0), pos2);
+                        ArrayList<Long> otherNewSegments = refNet.cutSegment(newSegments.get(1), index2 - index1, pos2);
                         newSegments.remove(1);
                         newSegments.addAll(otherNewSegments);
                         break;

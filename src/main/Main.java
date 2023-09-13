@@ -2,16 +2,9 @@ package main;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.matsim.api.core.v01.Coord;
-import org.matsim.api.core.v01.Id;
-import org.matsim.api.core.v01.network.Link;
 import org.matsim.api.core.v01.network.Network;
 import org.matsim.api.core.v01.network.NetworkWriter;
-import org.matsim.api.core.v01.network.Node;
-import org.matsim.core.network.NetworkUtils;
 
-import java.lang.Math;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 
@@ -29,12 +22,9 @@ public class Main {
         HashSet<String> modesToKeep = new HashSet<>();
         modesToKeep.add("car");
 
-        NetworkConflator conflator = new NetworkConflator("Entry Networks/emNetworkAm.xml", 20, 50,
-                "Entry Networks/montreal_net.xml", 20, 50,
-                100, modesToKeep, true, "Entry networks/montreal_emme_simplified.xml", "Entry networks/montreal_osm_simplified.xml");
-
-
-        // TODO : ajouter des commentaires en tête des fonctions et des classes (cf. NetworkConflator l. 96)
+        NetworkConflator conflator = new NetworkConflator("EntryNetworks/emNetworkAm.xml", 20, 50, true,
+                "EntryNetworks/montreal_net.xml", 20,
+                50, false, 100, modesToKeep, true, "EntryNetworks/montreal_emme_simplified.xml", "EntryNetworks/montreal_osm_simplified.xml");
 
 
         // TODO : tester toute la procédure de recherche de candidats
@@ -53,43 +43,17 @@ public class Main {
         //  Avertir quand la dimension du RTree est <= à la somme des tolérances buffer
 
 
-        LOG.info("Looking for potential candidates");
-        for (Segment refSegment : conflator.getRefNet().getSegments().values()) {
-            conflator.findSegmentCandidateMatches(refSegment);
-        }
-        LOG.info("Done looking for potential candidates");
+        HashMap<Long, HashSet<ScoredPolyline>> networkCandidates = conflator.populateForNetwork();
 
-
-
-        /*
-        HashMap<Long, HashSet<ScoredPolyline>> goodCandidateMatches = conflator.populateForNetwork();
-
-        for (Long segmentId : goodCandidateMatches.keySet()) {
-            Segment segment = preprocessedEmmeNet.getSegments().get(segmentId);
-            // Exemple de Mélocheville : x € [267070, 271740[, y € [5017200, 5020000[
-            boolean segmentInArea = false;
-            for (Node node : segment.getAllNodes()) {
-                double x = node.getCoord().getX();
-                double y = node.getCoord().getY();
-                if (267070 < x && x < 271740 && 5017200 < y && y < 5020000) {
-                    segmentInArea = true;
-                    break;
-                }
+        for(Long id : networkCandidates.keySet()) {
+            System.out.print("Segment " + id + " : ");
+            for(ScoredPolyline goodCandidate : networkCandidates.get(id)) {
+                System.out.print(goodCandidate.score + " ; ");
             }
-            if (segmentInArea) {
-                System.out.print("Segment: "+segmentId+" ; Links: ");
-                for (Link link : segment.getLinks()) {
-                    preprocessedEmmeNet.printLink(link.getId());
-                }
-                System.out.println("");
-                System.out.println("Candidate Polylines: ");
-                for (ScoredPolyline candidate : goodCandidateMatches.get(segmentId)) {
-                    System.out.print("Score: "+candidate.score+" ; links: ");
-                    conflator.printLinks(candidate.getPolyline());
-                }
-                System.out.println("");
-            }
+            System.out.println("");
         }
-         */
+
+
+        // Exemple de Mélocheville : x € [267070, 271740[, y € [5017200, 5020000[
     }
 }

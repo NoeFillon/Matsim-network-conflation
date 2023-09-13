@@ -438,14 +438,18 @@ public class ConflationPreprocessedNetwork {
      */
     public ArrayList<Long> cutSegment(Long segmentId, int cutLinkIndex, double cutPosition) {
         Segment segment  = segmentMap.get(segmentId);
+        if (cutLinkIndex + cutPosition == 0 || cutLinkIndex + cutPosition == segment.getLinks().size()) {
+            LOG.warn("Cut was not made because asked for on one end of segment: cutPosition = "+cutPosition);
+            return new ArrayList<Long>();
+        }
         removeSegment(segmentId);
         ArrayList<Long> newSegmentIdsList = new ArrayList<>();
         ArrayList<Link> newSegmentLinksList1 = new ArrayList<>();
         ArrayList<Link> newSegmentLinksList2 = new ArrayList<>();
 
-        if (cutPosition == 0 || cutPosition == 1) {
+        if (cutPosition < 0.0001 || cutPosition > 0.9999) {
             // Creating new segment link lists
-            if (cutPosition == 1) {
+            if (cutPosition > 0.9999) {
                 cutLinkIndex += 1;
             }
 
