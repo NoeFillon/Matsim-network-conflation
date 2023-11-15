@@ -25,14 +25,17 @@
 ## How to use this code ?
 
 ##### Execute src/main/Main class. It contains two instructions:
-    NetworkConflator conflator = new NetworkConflator(String refPath, double refNodeTolerance, double refBufferTolerance, boolean allRefNodesTerminal, String targetPath,
-                                                      double targetNodeTolerance, double targetBufferTolerance, boolean allTargetNodesTerminal, double rTreeSquareDimension,
-                                                      HashSet<String> modesToKeep, boolean savePreprocessedNetworks, String simplifiedRefNetworkSavingPath, String simplifiedTargetNetworkSavingPath)
+    NetworkConflator conflator = new NetworkConflator(String refPath, double refNodeTolerance, double refBufferTolerance,
+                                        boolean allRefNodesTerminal, String targetPath, double targetNodeTolerance,
+                                        double targetBufferTolerance, boolean allTargetNodesTerminal,
+                                        double rTreeSquareDimension, HashSet<String> modesToKeep, boolean savePreprocessedNetworks,
+                                        String simplifiedRefNetworkSavingPath, String simplifiedTargetNetworkSavingPath)
 ##### This function preprocesses the two networks and creates an object NetworkConflator that contains the functions necessary for the next steps.
 ##### If one network is significantly less detailed than the other, we recommend taking the least detailed one as reference network.
 ##### The parameter `allNodesAreTerminal` (simplifying the network into segments if set to `false`) should be set depending on the precision of both networks. A network should be simplified (`allNodesAreTerminal = false`) only if it does not increase the gap in precision between the two networks. Therefore, if there is a difference in precision/exhaustivity, reference network should generally not be simplified. Generally, if a network is exhaustive, it can be simplified to increase performance.
 ##### Default tolerance values have been chosen in the code, they should be defined regarding the geometrical precision of the networks.
 ##### `RTreeSquareDimension` must be as small as possible to increase performance but bigger than `refBufferTolerance + targetBufferTolerance`.
 ##### More details about the parameters in function documentation.
-##### The second instruction is `HashMap<Long, HashSet<ScoredPolyline>> networkCandidates = conflator.populateForNetwork();`
+##### The second instruction is:
+    HashMap<Long, HashSet<ScoredPolyline>> networkCandidates = conflator.populateForNetwork();
 ##### This instruction performs the construction of compatible target polylines associated with reference segments and computes each polyline's similarity score.
