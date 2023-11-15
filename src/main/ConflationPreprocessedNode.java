@@ -14,7 +14,7 @@ public class ConflationPreprocessedNode {
 
 
     /**
-     * Constructor if one wants to force terminal of non-terminal status on node
+     * Constructor
      * @param node node
      * @param terminalByDefault status by default (true = terminal)
      */
@@ -23,16 +23,6 @@ public class ConflationPreprocessedNode {
         this.isTerminal = terminalByDefault;
     }
 
-
-    /**
-     * Constructor by default
-     * @param node node
-     * @param angleTolerance tolerance for link to be considered opposite direction: angle between links must be in [PI - angleTolerance, PI + angleTolerance]
-     */
-    public ConflationPreprocessedNode(Node node, double angleTolerance){
-        this.node = node;
-        computeIsTerminal(angleTolerance);
-    }
 
     /**
      * Checks if this.node is terminal or not

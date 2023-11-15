@@ -257,15 +257,18 @@ public class NetworkConflator {
                     interpolatedPl = interpolatedPl.interpolate(refSegment.getFromNode().getCoord(), nodeTolerance, false);
                 }
 
-                boolean alreadyPresent = false;
-                for (Polyline candidate : finalSet) {
-                    if (candidate.equals(interpolatedPl)) {
-                        alreadyPresent = true;
-                        break;
+                interpolatedPl.simplifyCuts();
+                if (interpolatedPl.getSegments().size() > 0) {
+                    boolean alreadyPresent = false;
+                    for (Polyline candidate : finalSet) {
+                        if (candidate.equals(interpolatedPl)) {
+                            alreadyPresent = true;
+                            break;
+                        }
                     }
-                }
-                if (!alreadyPresent) {
-                    finalSet.add(interpolatedPl);
+                    if (!alreadyPresent) {
+                        finalSet.add(interpolatedPl);
+                    }
                 }
             }
         }
@@ -301,10 +304,10 @@ public class NetworkConflator {
                     for (Segment segment : polylinesFromSegments.keySet()) {
                         if (startingSeg.getToNode() == segment.getFromNode()) {
                             for (Polyline polyline : polylinesFromSegments.get(segment)) {
-                                ArrayList<Segment> newsegmentList = new ArrayList<>();
-                                newsegmentList.add(startingSeg);
-                                newsegmentList.addAll(polyline.getSegments());
-                                polylinesFromSegments.get(startingSeg).add(new Polyline(newsegmentList));
+                                ArrayList<Segment> newSegmentList = new ArrayList<>();
+                                newSegmentList.add(startingSeg);
+                                newSegmentList.addAll(polyline.getSegments());
+                                polylinesFromSegments.get(startingSeg).add(new Polyline(newSegmentList));
                             }
                         }
                     }
@@ -345,15 +348,16 @@ public class NetworkConflator {
     private double computeScore(Segment refSegment, Polyline candidate) {
         double ovArea = 0;
         double tarArea = 0;
-        // Assuming the angles between links are not fairly small
-        // we consider the buffer of the polyline as the union of the buffers of links
-        // (without lengthening them at their ends)
+        /* Assuming the angles between links are not fairly small
+        we consider the buffer of the polyline as the union of the buffers of links
+        (without lengthening them at their ends) */
         ArrayList<ArrayList<LocalizedVector>> linksInSegments = candidate.getLinkLocalizedVectorsWithCuts();
-        for (int sgIndex = 0; sgIndex < linksInSegments.size(); sgIndex++) {
-            for (int linkIndex = 0; linkIndex < linksInSegments.get(sgIndex).size(); linkIndex++) {
-                boolean prolongTarFrom = (linkIndex == 0);
-                boolean prolongTarTo = (linkIndex == linksInSegments.get(sgIndex).size() - 1);
-                LocalizedVector linkLocalizedVector = linksInSegments.get(sgIndex).get(linkIndex);
+
+        for (int segIndex = 0; segIndex < linksInSegments.size(); segIndex++) {
+            for (int linkIndex = 0; linkIndex < linksInSegments.get(segIndex).size(); linkIndex++) {
+                boolean prolongTarFrom = (segIndex == 0 && linkIndex == 0);
+                boolean prolongTarTo = (segIndex == linksInSegments.size()-1 && linkIndex == linksInSegments.get(segIndex).size() - 1);
+                LocalizedVector linkLocalizedVector = linksInSegments.get(segIndex).get(linkIndex);
                 tarArea += 2*targetNet.getBufferTolerance() * VectOp.length(linkLocalizedVector.getVectorCoord());
                 ovArea += overlapArea(refSegment.getLocalizedVector(), linkLocalizedVector, prolongTarFrom, prolongTarTo);
             }
@@ -455,7 +459,7 @@ public class NetworkConflator {
         buffer.add(targetSeg.getBufferBorder(-leftRightOrder*targetTolerance, targetFromPlonong, targetToPlonong));
 
         // Expressing the departure points as translations from seg1.fromNode
-        // Then expressing all coordinates in seg1 base
+        // Then expressing all coordinates in refSeg base
         for (int i = 0; i<2; i++) {
             buffer.set(i, buffer.get(i).expressInOrthoNBase(refSeg.getFromCoord(), refSeg.getVectorCoord()));
         }
@@ -465,12 +469,12 @@ public class NetworkConflator {
             double xMax;
             double yMin;
             double yMax;
-            if (dot == 0) { // rectangles are perpendicular
+            if (dot == 0) { // segments are perpendicular
                 xMin = Math.max(-refTolerance, buffer.get(0).getFromCoord().getX());
                 xMax = Math.min(VectOp.length(refSeg.getVectorCoord())+refTolerance, buffer.get(1).getFromCoord().getX());
                 yMin = Math.max(-refTolerance, Math.min(buffer.get(0).getFromCoord().getY(), buffer.get(0).getToCoord().getY()));
                 yMax = Math.min(refTolerance, Math.max(buffer.get(0).getFromCoord().getY(), buffer.get(0).getToCoord().getY()));
-            } else { // rectangles are parallel
+            } else { // segments are parallel
                 xMin = Math.max(-refTolerance, Math.min(buffer.get(0).getFromCoord().getX(), buffer.get(0).getToCoord().getX()));
                 xMax = Math.min(VectOp.length(refSeg.getVectorCoord())+refTolerance, Math.max(buffer.get(0).getFromCoord().getX(), buffer.get(0).getToCoord().getX()));
                 yMin = Math.max(-refTolerance, Math.min(buffer.get(0).getFromCoord().getY(), buffer.get(1).getFromCoord().getY()));
@@ -616,7 +620,8 @@ public class NetworkConflator {
         }
 
         /// Saving a "width profile" (h = f(x)) in order to integrate between lcut and rcut
-        rcut = VectOp.length(targetSeg.getVectorCoord()) + targetTolerance;
+        lcut = -targetFromPlonong;
+        rcut = VectOp.length(targetSeg.getVectorCoord()) + targetToPlonong;
 
         ArrayList<Double> xList = new ArrayList<>();
         ArrayList<Double> hList = polygon.getWidthProfile(xList);

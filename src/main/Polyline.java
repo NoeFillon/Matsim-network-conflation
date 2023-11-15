@@ -120,17 +120,25 @@ public class Polyline {
                 boolean finalCondition = segmentIndex==segments.size()-1 && finalCut.getIsLinkCut() && linkIndex >= finalCut.getCutLinkIndex();
                 if (!initialCondition && !finalCondition) {
                     toAdd = true;
-                } else if (initialCut.getCutPosition() < finalCut.getCutPosition()) {
-                    if (initialCondition && initialCut.getCutLinkIndex() == linkIndex && initialCut.getCutPosition() < 1) {
+                } else if (!finalCondition) {
+                    if (initialCut.getCutLinkIndex() == linkIndex && initialCut.getCutPosition() < 1) {
                         toAdd = true;
                         double pos = initialCut.getCutPosition();
-                        fromCoord = VectOp.addVectors(VectOp.extPdt(pos, toCoord), VectOp.extPdt(1-pos, fromCoord));
+                        fromCoord = VectOp.addVectors(VectOp.extPdt(pos, toCoord), VectOp.extPdt(1 - pos, fromCoord));
                     }
-                    if (finalCondition && finalCut.getCutLinkIndex() == linkIndex) {
+                } else if (!initialCondition) {
+                    if (finalCut.getCutLinkIndex() == linkIndex && finalCut.getCutPosition() > 0) {
                         toAdd = true;
                         double pos = finalCut.getCutPosition();
-                        toCoord = VectOp.addVectors(VectOp.extPdt(pos, toCoord), VectOp.extPdt(1-pos, fromCoord));
+                        toCoord = VectOp.addVectors(VectOp.extPdt(pos, toCoord), VectOp.extPdt(1 - pos, fromCoord));
                     }
+                } else if (initialCut.getCutPosition() < finalCut.getCutPosition() && initialCut.getCutLinkIndex() == linkIndex && finalCut.getCutLinkIndex() == linkIndex) {
+                    toAdd = true;
+                    double fromPos = initialCut.getCutPosition();
+                    double toPos = finalCut.getCutPosition();
+                    Coord tempFromCoord = VectOp.addVectors(VectOp.extPdt(fromPos, toCoord), VectOp.extPdt(1-fromPos, fromCoord));
+                    toCoord = VectOp.addVectors(VectOp.extPdt(toPos, toCoord), VectOp.extPdt(1-toPos, fromCoord));
+                    fromCoord = tempFromCoord;
                 }
                 if (toAdd) {
                     Coord vector = VectOp.addVectors(toCoord, VectOp.extPdt(-1, fromCoord));
@@ -388,6 +396,7 @@ public class Polyline {
 
 
     /**
+     * Unused
      * Finds closest Polyline point from parameter point
      * @param point coordinates of the point one wants to find closest Polyline point from (parameter point)
      * @param cutLinkIndex Can initially be any BidimentionalIndex, when function is executed, gets placement of the link the closest point belongs to
@@ -482,6 +491,7 @@ public class Polyline {
         return VectOp.addVectors(VectOp.extPdt(1-pos, link.getFromNode().getCoord()), VectOp.extPdt(pos, link.getToNode().getCoord()));
     }
 
+
     /**
      * Useless function
      * @param potentialCandidates
@@ -514,17 +524,41 @@ public class Polyline {
 
 
     /**
-     * Removes False cuts (ex. isLinkCut = true but cutPosition is 0 or 1 => set isLinkCut to false)
+     * Deactivates useless cuts and removes unused links and segments because of cuts
      */
-    protected void correctFalseCuts() {
-        if (initialCut.getIsLinkCut() && initialCut.getCutLinkIndex() == 0 && initialCut.getCutPosition() == 0) {
-            initialCut.isLinkCut = false;
+    public void simplifyCuts(){
+        if (initialCut.getIsLinkCut()) {
+            if (initialCut.getCutLinkIndex() == 0 && initialCut.getCutPosition() == 0) {
+                initialCut.isLinkCut = false;
+            } else if (initialCut.getCutPosition() == 1) {
+                if (initialCut.getCutLinkIndex() == segments.get(0).getLinks().size()-1) {
+                    segments.remove(0);
+                    initialCut.cutLinkIndex = 0;
+                    initialCut.cutPosition = 0;
+                    initialCut.isLinkCut = false;
+                } else {
+                    initialCut.cutLinkIndex += 1;
+                    initialCut.cutPosition = 0;
+                }
+            }
         }
-        if (finalCut.getIsLinkCut() && finalCut.getCutLinkIndex() == segments.get(segments.size()-1).getLinks().size()-1 && finalCut.getCutPosition() == 1) {
-            finalCut.isLinkCut = false;
+        if (segments.size() > 0 && finalCut.getIsLinkCut()) {
+            int lastLink = segments.get(segments.size()-1).getLinks().size()-1;
+            if (finalCut.getCutLinkIndex() == lastLink && finalCut.getCutPosition() == 1) {
+                finalCut.isLinkCut = false;
+            } else if (finalCut.getCutPosition() == 0) {
+                if (finalCut.getCutLinkIndex() == 0) {
+                    segments.remove(segments.size()-1);
+                    initialCut.cutLinkIndex = 0;
+                    initialCut.cutPosition = 1;
+                    initialCut.isLinkCut = false;
+                } else {
+                    initialCut.cutLinkIndex += -1;
+                    initialCut.cutPosition = 1;
+                }
+            }
         }
     }
-
 
     /**
      * Checks if other Polyline is equal to this (same segments and same cuts)
@@ -532,11 +566,46 @@ public class Polyline {
      * @return true if equal, false otherwies
      */
     public boolean equals(Polyline pl) {
-        this.correctFalseCuts();
-        pl.correctFalseCuts();
+        this.simplifyCuts();
+        pl.simplifyCuts();
         boolean equalInitCut = (!initialCut.getIsLinkCut() && !pl.initialCut.getIsLinkCut()) || initialCut.equals(pl.initialCut);
         boolean equalFinalCut = (!finalCut.getIsLinkCut() && !pl.finalCut.getIsLinkCut()) || finalCut.equals(pl.finalCut);
         return segments.equals(pl.getSegments()) && equalInitCut && equalFinalCut;
+    }
+
+
+    public void printLinks() {
+        int initLinkIndex = 0;
+        int finalLinkIndex = segments.get(segments.size()-1).getLinks().size()-1;
+        if(initialCut.getIsLinkCut()) {
+            initLinkIndex = initialCut.getCutLinkIndex();
+            if(initialCut.getCutPosition() > 0) {
+                System.out.print("init cut : " + initialCut.getCutPosition() + " ");
+            }
+        }
+        if(finalCut.getIsLinkCut()) {
+            finalLinkIndex = finalCut.getCutLinkIndex();
+        }
+
+        for(int i = 0; i < segments.size(); i++) {
+            Segment segment = segments.get(i);
+            int firstLinkIndex = 0;
+            int lastLinkIndex = segment.getLinks().size()-1;
+            if (i == 0) {
+                firstLinkIndex = initLinkIndex;
+            }
+            if (i == segments.size()-1) {
+                lastLinkIndex = finalLinkIndex;
+            }
+            System.out.print("Seg "+segment.getId()+" : ");
+            for(Link link : segment.getLinks().subList(firstLinkIndex, lastLinkIndex+1)) {
+                System.out.print(link.getId().toString()+", ");
+            }
+        }
+
+        if(finalCut.getIsLinkCut() && finalCut.getCutPosition() < 1) {
+            System.out.println("final cut : " + finalCut.getCutPosition());
+        }
     }
 
 
@@ -568,7 +637,8 @@ public class Polyline {
          * @return true it equal, false otherwise
          */
         public boolean equals(Cut cut) {
-            return (isLinkCut==cut.getIsLinkCut() && cutLinkIndex==cut.getCutLinkIndex() && Math.abs(cutPosition-cut.getCutPosition())<0.0001);
+            return (isLinkCut == false && cut.getIsLinkCut() == false) ||
+                    (isLinkCut==cut.getIsLinkCut() && cutLinkIndex==cut.getCutLinkIndex() && Math.abs(cutPosition-cut.getCutPosition())<0.0001);
         }
 
 

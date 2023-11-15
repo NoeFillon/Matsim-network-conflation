@@ -198,7 +198,7 @@ public class ConflationPreprocessedNetwork {
      */
     private Link straightestUnexploredLink(Link link, boolean forward, HashSet<Link> unexploredLinks) {
         ArrayList <Link> links = new ArrayList<>();
-        String nodeId = new String();
+        String nodeId;
         if (forward) {
             links.addAll(link.getToNode().getOutLinks().values());
             nodeId = link.getToNode().getId().toString();
