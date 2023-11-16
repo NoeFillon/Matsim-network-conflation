@@ -4,6 +4,7 @@
 
 ##### This code was made during a Master first year internship in research.
 ##### In order to represent road networks in MATSim, several datasets from different sources could be useful to improve the reliability of the data. Starting from two overlapping MATSim networks this code is part of what is necessary to conflate them into one.
+#### This work has been largely inspired by Gorisha Agarwal's Master's thesis on road network conflation. More information at the end of this description.
 
 #### **Input data:**
 ##### Two MATSim networks to be conflated: a reference network and a target network
@@ -39,3 +40,5 @@
 ##### The second instruction is:
     HashMap<Long, HashSet<ScoredPolyline>> networkCandidates = conflator.populateForNetwork();
 ##### This instruction performs the construction of compatible target polylines associated with reference segments and computes each polyline's similarity score.
+##### For more details about how the code works, refer to the internship report in this repository.
+##### Gorisha Agarwal's thesis: Gorisha Agarwal, "A principled approach to automated road network conflation," University of British Columbia, 2021. [Online]. Available on: https://open.library.ubc.ca/soa/cIRcle/collections/ubctheses/24/items/1.0398182
