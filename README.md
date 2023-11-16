@@ -40,5 +40,5 @@
 ##### The second instruction is:
     HashMap<Long, HashSet<ScoredPolyline>> networkCandidates = conflator.populateForNetwork();
 ##### This instruction performs the construction of compatible target polylines associated with reference segments and computes each polyline's similarity score.
-##### For more details about how the code works, refer to the internship report in this repository.
+##### For more details about how the code works, refer to the internship report in this repository. It has been automatically tranlated into English, some mistakes could have occured.
 ##### Gorisha Agarwal's thesis: Gorisha Agarwal, "A principled approach to automated road network conflation," University of British Columbia, 2021. [Online]. Available on: https://open.library.ubc.ca/soa/cIRcle/collections/ubctheses/24/items/1.0398182
